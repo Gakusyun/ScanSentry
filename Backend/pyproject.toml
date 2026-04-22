@@ -1,7 +1,15 @@
 [project]
 name = "scansentry"
 version = "0.1.0"
-description = "Lightweight standalone FastAPI service, permanently records all server HTTP access logs via SQLite. Automatically identifies malicious vulnerability scanning requests, provides pure JSON API for log query and IP statistics, supports long-term historical data analysis, no automatic log cleanup."
+description = "Lightweight FastAPI log service, SQLite persistence, reverse proxy real IP support, /show/me JSON API for log query and IP stats"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi>=0.136.0",
+    "sqlmodel>=0.0.38",
+    "uvicorn>=0.45.0",
+]
+
+[[tool.uv.index]]
+url = "https://mirrors.hust.edu.cn/pypi/web/simple"
+default = true

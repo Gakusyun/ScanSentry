@@ -1,0 +1,7 @@
+[project]
+name = "scansentry"
+version = "0.1.0"
+description = "Lightweight standalone FastAPI service, permanently records all server HTTP access logs via SQLite. Automatically identifies malicious vulnerability scanning requests, provides pure JSON API for log query and IP statistics, supports long-term historical data analysis, no automatic log cleanup."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []

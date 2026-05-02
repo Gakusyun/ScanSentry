@@ -94,6 +94,8 @@ class IPStatsEntry(BaseModel):
 
 class IPStatsResponse(BaseModel):
     total: int
+    page: int
+    page_size: int
     items: list[IPStatsEntry]
 
 # ========== FastAPI 应用 ==========
@@ -143,13 +145,17 @@ def get_logs(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200
     return LogListResponse(total=total, page=page, page_size=page_size, items=list(logs))
 
 @app.get("/show/me/ip", response_model=IPStatsResponse)
-def get_ip_stats(limit: int = Query(50, ge=1, le=500)):
+def get_ip_stats(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
     with Session(engine) as session:
+        # 先获取总数
+        total = session.exec(select(func.count(func.distinct(AccessLog.client_ip)))).one()
+        # 获取分页后的 IP 列表
         results = session.exec(
             select(AccessLog.client_ip, func.count(AccessLog.id).label("access_count"))
             .group_by(AccessLog.client_ip)
             .order_by(func.count(AccessLog.id).desc())
-            .limit(limit)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         ).all()
         items: list[IPStatsEntry] = []
         for r in results:
@@ -159,7 +165,7 @@ def get_ip_stats(limit: int = Query(50, ge=1, le=500)):
             location = ip_info.location if ip_info else ""
             isp = ip_info.isp if ip_info else ""
             items.append(IPStatsEntry(client_ip=ip, access_count=count, location=location, isp=isp))
-    return IPStatsResponse(total=len(items), items=items)
+    return IPStatsResponse(total=total, page=page, page_size=page_size, items=items)
 
 @app.get("/show/me/overview")
 def get_overview():
@@ -169,16 +175,20 @@ def get_overview():
     return {"total_requests": total, "unique_ips": unique_ips}
 
 @app.get("/show/me/path")
-def get_path_stats(limit: int = Query(50, ge=1, le=500)):
+def get_path_stats(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
     with Session(engine) as session:
+        # 先获取总数
+        total = session.exec(select(func.count(func.distinct(AccessLog.path)))).one()
+        # 获取分页后的 Path 列表
         results = session.exec(
             select(AccessLog.path, func.count(AccessLog.id).label("access_count"))
             .group_by(AccessLog.path)
             .order_by(func.count(AccessLog.id).desc())
-            .limit(limit)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         ).all()
     items = [{"path": r.path, "access_count": r.access_count} for r in results]
-    return {"total": len(items), "items": items}
+    return {"total": total, "page": page, "page_size": page_size, "items": items}
 
 @app.get("/show/me/health")
 def health_check():

@@ -117,31 +117,32 @@ async def log_requests(request: Request, call_next):
         return await call_next(request)
 
     response = await call_next(request)
-    try:
-        client_ip = get_real_client_ip(request)
-        # 限制 path 长度，防止恶意数据
-        raw_path = request.url.path + (f"?{request.url.query}" if request.url.query else "")
-        path = raw_path[:2048] if len(raw_path) > 2048 else raw_path
+    client_ip = get_real_client_ip(request)
+    # 限制 path 长度，防止恶意数据
+    raw_path = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+    path = raw_path[:2048] if len(raw_path) > 2048 else raw_path
 
-        with Session(engine) as session:
-            session.add(AccessLog(
-                client_ip=client_ip,
-                method=request.method,
-                path=path,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            ))
-            session.commit()
-            # 仅在该IP在 ip_info 表中不存在时才查询
-            ip_row = session.get(IPInfo, client_ip)
-            if ip_row is None:
-                try:
-                    location, isp = await fetch_ip_info(client_ip)
-                    session.add(IPInfo(ip=client_ip, location=location, isp=isp))
-                    session.commit()
-                except Exception:
-                    session.rollback()  # 忽略 IP 信息插入失败（可能是并发插入）
-    except Exception:
-        pass  # 日志记录失败不应影响正常请求
+    # 记录访问日志（必须成功）
+    with Session(engine) as session:
+        session.add(AccessLog(
+            client_ip=client_ip,
+            method=request.method,
+            path=path,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        ))
+        session.commit()
+
+    # IP 地理信息（允许失败，如并发插入）
+    with Session(engine) as session:
+        ip_row = session.get(IPInfo, client_ip)
+        if ip_row is None:
+            try:
+                location, isp = await fetch_ip_info(client_ip)
+                session.add(IPInfo(ip=client_ip, location=location, isp=isp))
+                session.commit()
+            except Exception:
+                session.rollback()  # 并发插入时忽略冲突
+
     return response
 
 # ========== API端点 ==========
